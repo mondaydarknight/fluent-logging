@@ -1,0 +1,62 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nginx-config
+  namespace: web
+  labels:
+    k8s-app: nginx-config
+data:
+  nginx.conf: |
+    pid /run/nginx.pid;
+    # worker_processes 4;
+    events {
+      worker_connections 4000;
+      multi_accept on;
+    }
+    http {
+      log_format json_output escape=json
+        '{'
+            '"vhost":"$server_name",'
+            '"remote_addr":"$remote_addr",'
+            '"time_iso8601":"$time_iso8601",'
+            '"request_uri":"$request_uri",'
+            '"request_length":$request_length,'
+            '"request_method":"$request_method",'
+            '"request_time":$request_time,'
+            '"server_port":$server_port,'
+            '"server_protocol":"$server_protocol",'
+            '"ssl_protocol":"$ssl_protocol",'
+            '"status":$status,'
+            '"bytes_sent":$bytes_sent,'
+            '"http_device_type":"$http_device_type",'
+            '"http_referer":"$http_referer",'
+            '"http_user_agent":"$http_user_agent",'
+            '"http_x_oauth_token":"$http_x_oauth_token",'
+            '"upstream_addr":"$upstream_addr",'
+            '"upstream_cache_status":"$upstream_cache_status",'
+            '"tcpinfo_rtt":$tcpinfo_rtt,'
+            '"tcpinfo_rttvar":$tcpinfo_rttvar'
+        '}';
+      keepalive_timeout 65;
+      keepalive_requests 60;
+      access_log /dev/stdout json_output;
+      access_log syslog:server=fluentd-aggregator-service.logging:5140,tag=nginx_access json_output;
+      error_log syslog:server=fluentd-aggregator-service.logging:5140,tag=nginx_error warn;
+      include /etc/nginx/conf.d/*.conf;
+    }
+
+  web.conf: |
+    server {
+      listen 80;
+      listen [::]:80;
+      root /var/www/public;
+      ignore_invalid_headers off;
+      underscores_in_headers on;
+      server_tokens off;
+      location / {
+        index index.php index.html index.htm;
+      }
+      location ~* \.(htaccess|php)$ {
+        return 404;
+      }
+    }

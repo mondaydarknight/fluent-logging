@@ -1,0 +1,101 @@
+# apiVersion: apps/v1
+# kind: Deployment
+# metadata:
+#   name: fluentd-aggregator
+#   namespace: logging
+#   labels:
+#     k8s-app: fluentd-aggregator
+#     component: log-aggregator
+# spec:
+#   selector:
+#     matchLabels:
+#       k8s-app: fluentd-aggregator
+#       component: log-aggregator
+#   replicas: 1
+#   minReadySeconds: 5
+#   progressDeadlineSeconds: 15
+#   revisionHistoryLimit: 5
+#   strategy:
+#     rollingUpdate:
+#       maxUnavailable: 0
+#       maxSurge: "100%"
+#   template:
+#     metadata:
+#       labels:
+#         k8s-app: fluentd-aggregator
+#         component: log-aggregator
+#     spec:
+#       containers:
+#         - name: http-server
+#           image: nginx:1.16-alpine
+#           imagePullPolicy: Always
+#           ports:
+#             - name: http-server
+#               containerPort: 80
+#               protocol: TCP
+#           volumeMounts:
+#             - name: nginx-log
+#               mountPath: /var/log/nginx
+#             - name: web-server-config
+#               mountPath: /etc/nginx
+#             - name: web-public-config
+#               mountPath: /var/www/public
+#         - name: fluentd-aggregator
+#           image: localhost:5000/fluent/fluentd-kubernetes:1.0
+#           imagePullPolicy: Always
+#           command: ["fluentd", "-c", "/fluentd/etc/fluentd.conf", "-p", "/fluentd/plugins"]
+#           env:
+#             - name: FLUENTD_CONFIG
+#               value: fluentd-aggregator.conf
+#           resources:
+#             limits:
+#               cpu: 2
+#               memory: 1024Mi
+#             requests:
+#               cpu: 1
+#               memory: 250Mi
+#           ports:
+#             - name: fwd-input
+#               containerPort: 24224
+#               protocol: TCP
+#             - name: fwd-input-udp
+#               containerPort: 24224
+#               protocol: UDP
+#             - name: prom-metrics
+#               containerPort: 24231
+#               protocol: TCP
+#             - name: monitor-agent
+#               containerPort: 24220
+#               protocol: TCP
+#             - name: http-input
+#               containerPort: 9880
+#               protocol: TCP
+#           livenessProbe:
+#             tcpSocket:
+#               port: 24224
+#             initialDelaySeconds: 5
+#             timeoutSeconds: 1
+#           volumeMounts:
+#             - name: docker-container-log
+#               mountPath: /var/lib/docker/containers
+#             - name: fluentd-config
+#               mountPath: /fluentd/etc
+#             - name: nginx-log
+#               mountPath: /var/log/nginx
+#       volumes:
+#         - name: docker-container-log
+#           hostPath:
+#             path: /var/lib/docker/containers
+#         - name: fluentd-config
+#           configMap:
+#             name: fluentd-config
+#         - name: nginx-log
+#           emptyDir: {}
+#         - name: web-server-config
+#           configMap:
+#             name: web-server-config
+#         - name: web-public-config
+#           configMap:
+#             name: web-public-config
+#       # terminationGracePeriodSeconds: 160
+#       serviceAccountName: fluentd

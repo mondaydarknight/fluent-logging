@@ -1,0 +1,44 @@
+version: '3.7'
+
+services:
+  nginx:
+    image: nginx:1.20-alpine
+    environment:
+      - TZ=${GLOBAL_TIMEZONE}
+    volumes:
+      - ./nginx/logs/http-server:/var/log/nginx
+      - ./nginx/config/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/config/sites:/etc/nginx/conf.d:ro
+    logging:
+      driver: fluentd
+      options:
+        fluentd-address: localhost:${FLUENT_FORWARD_PORT}
+        fluentd-async-connect: 'true'
+    expose:
+      - 80
+    ports:
+      - ${NGINX_PORT}:80
+    depends_on:
+      - fluentd
+
+  fluentd:
+    build:
+      context: ./fluentd
+    volumes:
+      - ${SOURCE_DIR}/config:/fluentd/etc
+      - ${SOURCE_DIR}/plugins:/fluentd/plugins
+    ports:
+      - "${FLUENT_FORWARD_PORT}:${FLUENT_FORWARD_PORT}"
+    depends_on:
+      - mongo
+
+  mongo:
+    image: mongo:5.0
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USERNAME}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD}
+      MONGO_INITDB_DATABASE: ${MONGO_DATABASE}
+    volumes:
+      - ${MONGO_PATH}:/data/db
+    ports:
+      - ${MONGO_PORT}:27017
